@@ -1,0 +1,161 @@
+---
+title: "Imports Cleaning Process"
+output: html_document
+date: "2025-05-05"
+---
+
+
+## Borrowed very heavily from Adam Miller's Exports Cleaning Process! Great grepl!
+
+```{r data work}
+#add libs
+library(readxl)
+library(tidyverse)
+library(dplyr)
+
+#read in both imports data. Only BP (Balance of Payments)/SA (seasonally-adjusted) sheets (one per file)
+##Change file location as needed.
+imports_current <- read_excel("C:\\Users\\adamv\\Documents\\ABC Advise\\abc_advise\\Raw Data\\IDS0182_Imports_Current.xlsx", 
+    sheet = "BP-based, SA", skip = 1)
+summary(imports_current)
+imports_historic <- read_excel("C:\\Users\\adamv\\Documents\\ABC Advise\\abc_advise\\Raw Data\\IDS0182_Imports_Historical.xlsx", 
+    sheet = "BP-based, SA", skip = 1)
+summary(imports_historic)
+
+#union both files together for cleaning
+imports <- union(imports_current, imports_historic)
+summary(imports)
+str(imports)
+
+# Add a 'level' column and set it equal to the number of digits after the x in 'end use' unless 'end use' is all letters.
+imports2 <- imports %>%
+  mutate(level = ifelse(grepl("^M[0-9]+$", `Enduse Code`),
+                        nchar(substring(`Enduse Code`, 2)),
+                        `Enduse Code`))
+
+# Now we are going to rearrange our data so the time date info is usable for analysis.
+imports_long <- imports2 %>%
+  pivot_longer(
+    cols = Jan:Dec,
+    names_to = "month",
+    values_to = "value"
+  ) %>%
+  mutate(
+    month_year = paste(month, Year),
+    date_col = paste("01", month_year),
+    date_col = as.Date(date_col, format = "%d %b %Y")
+  )
+
+# Check
+str(imports_long)
+head(imports_long)
+tail(imports_long)
+
+# Export data to desired location (update as needed)
+write.csv(imports_long, "C:\\Users\\adamv\\Documents\\ABC Advise\\abc_advise\\Edited Data\\imports_long.csv", row.names = FALSE)
+
+```
+
+```{r viz work}
+#add libs
+library(ggplot2)
+
+imports_codes <- imports_long |> 
+  select(`Enduse Code`, `EU Description`) |> 
+  distinct()
+
+# Export data to desired location (update as needed)
+write.csv(imports_codes, "C:\\Users\\adamv\\Documents\\ABC Advise\\abc_advise\\Edited Data\\imports_codes.csv", row.names = FALSE)
+
+#Iron and Steel Mill Products is M141
+#Iron & steel mill products-semifinished is M14100
+# M121	Textile supplies & related matls
+# M12100	Cotton cloth & fabrics, thread and cordage
+# M12110	Wool, silk & oth vegetable fabrics,thread & cordag
+# M12135	Synthetic cloth & fabric, thread and cordage
+# M12140	Oth materials (hair, synthetics, waste materials,
+# M12150	Finished textile industrial supplies (labels, brai
+# M12160	Leather & furs-unmanufactured
+# M3	Automotive veh, parts & engines
+# M30	Automotive veh, parts & engines
+# M300	Passenger cars, new & used
+# M30000	Complete & assembled-new & used
+# M301	Trucks, buses & spec-purpose veh
+# M30100	Complete & assembled
+# M30110	Bodies & chassis for trucks & buses
+# M302	Parts, engines, bodies & chassis
+# M30200	Engines & engine parts
+# M30210	Bodies & chassis for passenger cars
+# M30220	Automotive tires & tubes
+# M30230	Oth parts & accessories
+# MC	Automotive veh, parts & engines
+# MC0	Automotive veh, parts & engines
+# MC00	Passenger cars, new & used
+# MC0000	Complete & assembled-new & used
+# MC01	Trucks, buses & spec-purpose veh
+# MC0100	Complete & assembled
+# MC0110	Bodies & chassis for trucks & buses
+# MC02	Parts, engines, bodies & chassis
+# MC0200	Engines & engine parts
+# MC0210	Bodies & chassis for passenger cars
+# MC0220	Automotive tires & tubes
+# MC0230	Oth parts & accessories
+# MR	Automotive veh, parts & engines
+# MR0	Automotive veh, parts & engines
+# MR00	Passenger cars, new & used
+# MR0000	Complete & assembled-new & used
+# MR01	Trucks, buses & spec-purpose veh
+# MR0100	Complete & assembled
+# MR0110	Bodies & chassis for trucks & buses
+# MR02	Parts, engines, bodies & chassis
+# MR0200	Engines & engine parts
+# MR0210	Bodies & chassis for passenger cars
+# MR0220	Automotive tires & tubes
+# MR0230	Oth parts & accessories
+# M0	Foods, feeds, & beverages
+# M00	Agri foods, feeds & beverages
+# M000	Green coffee, cocoa beans, sugar
+# M00000	Green coffee
+# M00010	Cocoa beans
+# M00020	Cane and beet sugar
+# M001	Oth Agri foods
+# M00100	Meat , poultry & oth edible animals
+# M00110	Dairy products & eggs
+# M00120	Fruits & preparations, including frozen juices
+# M00130	Vegetables & preparations
+# M00140	Nuts & preparations
+# M00150	Food oils & oilseeds
+# M00160	Bakery & confectionery products
+# M00170	Tea, spices & preparations
+# M00180	Oth (soft beverages, processed coffee, cocoa, and
+# M00190	Wine & related products
+# M002	Feedstuff and Foodgrains
+# M00200	Feedstuff and foodgrains
+
+#At three digit level:
+# M001   Other Agri Foods
+# M121	Textile supplies & related matls
+# M141  Iron and Steel Mill Products 
+# M300	Passenger cars, new & used
+# MC00	Passenger cars, new & used
+# MR00	Passenger cars, new & used
+
+import_code_list <- c("M001", "M121", "M141", "M300", "MC00", "MR00")
+
+imports_filtered <- imports_long |> 
+  filter(`Enduse Code` %in% import_code_list) |> 
+  filter(date_col > 2019) |> 
+  arrange(date_col)
+
+
+line_plot_2019 <- ggplot(data=imports_filtered, aes(x=date_col, y=value, group = `Enduse Code`)) +
+  geom_line(aes(color = `EU Description`))
+plot(line_plot_2019)
+
+
+line_plot_2024 <- ggplot(data=subset(imports_filtered, date_col > as.Date("2024-1-1")),
+                         aes(x=date_col, y=value, group = `Enduse Code`)) +
+  geom_line(aes(color = `Enduse Code`))
+plot(line_plot_2024)
+
+```
