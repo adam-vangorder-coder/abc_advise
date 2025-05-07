@@ -158,4 +158,15 @@ line_plot_2024 <- ggplot(data=subset(imports_filtered, date_col > as.Date("2024-
   geom_line(aes(color = `Enduse Code`))
 plot(line_plot_2024)
 
+
+cars <- c("M300", "MC00", "MR00")
+
+imports_cars <- imports_filtered |> 
+  filter(`Enduse Code` %in% cars)
+
+line_plot_cars <- ggplot(data=subset(imports_cars, date_col > as.Date("2024-1-1")),
+                         aes(x=date_col, y=value, group = `Enduse Code`)) +
+  geom_line(aes(color = `Enduse Code`))
+plot(line_plot_cars)
+
 ```
